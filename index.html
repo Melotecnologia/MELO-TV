@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeloTV - Sistema de Gestão</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-logo">
+                    <div class="logo-icon">MT</div>
+                    <h1>MeloTV</h1>
+                </div>
+                <p>Sistema de Gestão</p>
+            </div>
+            <form id="formLogin" class="login-form">
+                <div class="form-group">
+                    <label>Usuário</label>
+                    <input type="text" id="loginUser" placeholder="Digite seu usuário" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <input type="password" id="loginPassword" placeholder="Digite sua senha" required>
+                </div>
+                <div id="loginError" class="login-error"></div>
+                <button type="submit" class="btn btn-primary btn-full">Entrar</button>
+            </form>
+            <div class="login-info">
+                <small>Usuários de teste:</small>
+                <small>admin/admin123 | operador/operador123 | gerente/gerente123</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div class="app-container" id="mainApp" style="display: none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">MT</div>
+                <h1>MeloTV</h1>
+            </div>
+            <div class="header-info">
+                <span id="currentUser" style="margin-right: 20px;"></span>
+                <span id="currentDate" style="margin-right: 20px;"></span>
+                <button class="btn btn-danger btn-sm" onclick="logout()">🚪 Logout</button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+            <button class="tab-btn" data-tab="clientes">Clientes</button>
+            <button class="tab-btn" data-tab="assinaturas">Assinaturas</button>
+            <button class="tab-btn" data-tab="paineis">Painéis</button>
+            <button class="tab-btn" data-tab="relatorios">Relatórios</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-content active">
+                <h2>Dashboard Executivo</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: var(--color-primary);">👥</div>
+                        <div class="stat-info">
+                            <h3 id="totalClientes">0</h3>
+                            <p>Total de Clientes</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: var(--color-success);">✓</div>
+                        <div class="stat-info">
+                            <h3 id="assinaturasAtivas">0</h3>
+                            <p>Assinaturas Ativas</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: var(--color-warning);">💰</div>
+                        <div class="stat-info">
+                            <h3 id="receitaMensal">R$ 0</h3>
+                            <p>Receita Mensal</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: var(--color-danger);">⏰</div>
+                        <div class="stat-info">
+                            <h3 id="pagamentosPendentes">0</h3>
+                            <p>Pagamentos Pendentes</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Receita por Mês</h3>
+                        <canvas id="chartReceita"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Distribuição por Plano</h3>
+                        <canvas id="chartPlanos"></canvas>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Assinaturas por Painel</h3>
+                        <canvas id="chartPaineis"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Vencimentos Próximos (7 dias)</h3>
+                        <div class="vencimentos-list" id="vencimentosProximos"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Clientes Tab -->
+            <section id="clientes" class="tab-content">
+                <div class="section-header">
+                    <h2>Gerenciamento de Clientes</h2>
+                    <button class="btn btn-primary" onclick="openClienteModal()">+ Novo Cliente</button>
+                </div>
+
+                <div class="filters-bar">
+                    <input type="text" id="searchCliente" class="search-input" placeholder="Buscar por nome ou email...">
+                    <select id="filterStatus" class="filter-select">
+                        <option value="">Todos os Status</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                    </select>
+                    <button id="btnDeleteSelected" class="btn btn-danger" style="display: none;" onclick="deleteSelectedClientes()">Deletar Selecionados</button>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAll"></th>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Email</th>
+                                <th>Telefone</th>
+                                <th>Painel</th>
+                                <th>Plano</th>
+                                <th>Vencimento</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientesTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Assinaturas Tab -->
+            <section id="assinaturas" class="tab-content">
+                <div class="section-header">
+                    <h2>Gerenciamento de Assinaturas</h2>
+                    <button class="btn btn-primary" onclick="openAssinaturaModal()">+ Nova Assinatura</button>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Painel</th>
+                                <th>Plano</th>
+                                <th>Data Início</th>
+                                <th>Vencimento</th>
+                                <th>Status Pagamento</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assinaturasTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Painéis Tab -->
+            <section id="paineis" class="tab-content">
+                <div class="section-header">
+                    <h2>Gerenciamento de Painéis</h2>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Status</th>
+                                <th>Total Assinaturas</th>
+                                <th>Receita</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paineisTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Relatórios Tab -->
+            <section id="relatorios" class="tab-content">
+                <div class="section-header">
+                    <h2>Relatórios</h2>
+                    <div class="export-buttons">
+                        <button class="btn btn-secondary" onclick="exportPDF()">📄 Exportar PDF</button>
+                        <button class="btn btn-secondary" onclick="exportCSV()">📊 Exportar CSV</button>
+                    </div>
+                </div>
+
+                <div class="report-tabs">
+                    <button class="report-tab-btn active" data-report="receita">Receita</button>
+                    <button class="report-tab-btn" data-report="clientes-report">Clientes</button>
+                    <button class="report-tab-btn" data-report="paineis-report">Painéis</button>
+                </div>
+
+                <!-- Receita Report -->
+                <div id="receita" class="report-content active">
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Receita Mensal</h3>
+                            <canvas id="chartReceitaMensal"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Receita por Plano</h3>
+                            <div class="report-stats" id="receitaPorPlano"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clientes Report -->
+                <div id="clientes-report" class="report-content">
+                    <div class="report-section">
+                        <h3>Vencimentos Próximos (7 dias)</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Email</th>
+                                        <th>Vencimento</th>
+                                        <th>Plano</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportVencimentos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="report-section">
+                        <h3>Últimos Cadastrados</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Email</th>
+                                        <th>Data Cadastro</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportUltimosCadastros"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painéis Report -->
+                <div id="paineis-report" class="report-content">
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Receita por Painel</h3>
+                            <canvas id="chartReceitaPaineis"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Top Performers</h3>
+                            <div class="report-stats" id="topPaineis"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Cliente -->
+    <div id="modalCliente" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalClienteTitle">Novo Cliente</h3>
+                <button class="close-btn" onclick="closeModal('modalCliente')">&times;</button>
+            </div>
+            <form id="formCliente">
+                <input type="hidden" id="clienteId">
+                <div class="form-group">
+                    <label>Nome *</label>
+                    <input type="text" id="clienteNome" required>
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="clienteEmail" required>
+                </div>
+                <div class="form-group">
+                    <label>Telefone *</label>
+                    <input type="text" id="clienteTelefone" placeholder="(00) 00000-0000" required>
+                </div>
+                <div class="form-group">
+                    <label>CPF *</label>
+                    <input type="text" id="clienteCPF" placeholder="000.000.000-00" required>
+                </div>
+                <div class="form-group">
+                    <label>Endereço</label>
+                    <input type="text" id="clienteEndereco">
+                </div>
+                <div class="form-group">
+                    <label>Painel *</label>
+                    <select id="clientePainel" required>
+                        <option value="">Selecione um painel</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Plano *</label>
+                    <select id="clientePlano" required>
+                        <option value="">Selecione um plano</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data de Início *</label>
+                    <input type="date" id="clienteDataInicio" required>
+                </div>
+                <div class="form-group">
+                    <label>Data de Vencimento *</label>
+                    <input type="date" id="clienteDataVencimento" required>
+                </div>
+                <div class="form-group">
+                    <label>Status de Pagamento</label>
+                    <select id="clienteStatusPagamento">
+                        <option value="pago">Pago</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="atrasado">Atrasado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="clienteStatus">
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modalCliente')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Assinatura -->
+    <div id="modalAssinatura" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalAssinaturaTitle">Nova Assinatura</h3>
+                <button class="close-btn" onclick="closeModal('modalAssinatura')">&times;</button>
+            </div>
+            <form id="formAssinatura">
+                <input type="hidden" id="assinaturaId">
+                <div class="form-group">
+                    <label>Cliente *</label>
+                    <select id="assinaturaCliente" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Painel *</label>
+                    <select id="assinaturaPainel" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Plano *</label>
+                    <select id="assinaturaPlano" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Data Início *</label>
+                    <input type="date" id="assinaturaDataInicio" required>
+                </div>
+                <div class="form-group">
+                    <label>Data Vencimento *</label>
+                    <input type="date" id="assinaturaDataVencimento" required>
+                </div>
+                <div class="form-group">
+                    <label>Status Pagamento</label>
+                    <select id="assinaturaStatusPagamento">
+                        <option value="pago">Pago</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="atrasado">Atrasado</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modalAssinatura')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pagamento -->
+    <div id="modalPagamento" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Registrar Pagamento</h3>
+                <button class="close-btn" onclick="closeModal('modalPagamento')">&times;</button>
+            </div>
+            <form id="formPagamento">
+                <input type="hidden" id="pagamentoAssinaturaId">
+                <div class="form-group">
+                    <label>Data Pagamento *</label>
+                    <input type="date" id="pagamentoData" required>
+                </div>
+                <div class="form-group">
+                    <label>Valor *</label>
+                    <input type="number" id="pagamentoValor" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Método *</label>
+                    <select id="pagamentoMetodo" required>
+                        <option value="pix">PIX</option>
+                        <option value="cartao">Cartão de Crédito</option>
+                        <option value="boleto">Boleto</option>
+                        <option value="dinheiro">Dinheiro</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modalPagamento')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Registrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Detalhes Assinatura -->
+    <div id="modalDetalhes" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Detalhes da Assinatura</h3>
+                <button class="close-btn" onclick="closeModal('modalDetalhes')">&times;</button>
+            </div>
+            <div id="detalhesContent"></div>
+        </div>
+    </div>
+
+    <!-- Modal Assinaturas do Painel -->
+    <div id="modalPainelAssinaturas" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="painelModalTitle">Assinaturas do Painel</h3>
+                <button class="close-btn" onclick="closeModal('modalPainelAssinaturas')">&times;</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Plano</th>
+                            <th>Data Início</th>
+                            <th>Vencimento</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="painelAssinaturasBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
