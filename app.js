@@ -1,1194 +1,734 @@
-// Global State - In-Memory Data Storage
-let state = {
-  usuarios: [
-    { user: 'admin', senha: 'admin123' },
-    { user: 'operador', senha: 'operador123' },
-    { user: 'gerente', senha: 'gerente123' }
-  ],
-  currentUser: null,
-  clientes: [],
-  paineis: [
-    { id: 1, nome: 'America', status: 'ativo' },
-    { id: 2, nome: 'UNIPLAY', status: 'ativo' },
-    { id: 3, nome: 'P2CINE', status: 'ativo' },
-    { id: 4, nome: '2Live 21', status: 'ativo' },
-    { id: 5, nome: 'ANDS', status: 'ativo' },
-    { id: 6, nome: 'BRPRO', status: 'ativo' }
-  ],
-  planos: [
-    { id: 1, nome: 'Plano Basic', preco: 20 },
-    { id: 2, nome: 'Plano Plus', preco: 25 },
-    { id: 3, nome: 'Plano Premium', preco: 30 }
-  ],
-  assinaturas: [],
-  pagamentos: [],
-  nextClienteId: 1,
-  nextAssinaturaId: 1,
-  nextPagamentoId: 1
+// ========== DADOS EM MEMÓRIA ==========
+const usuarioLogado = {
+    id: null,
+    username: '',
+    role: ''
 };
 
-// Charts instances
-let charts = {};
+const API = {
+    usuarios: [
+        { id: 1, username: 'admin', email: 'admin@melotv.com', senha: 'admin123', role: 'Admin', status: 'ativo', data_criacao: '2025-01-10' },
+        { id: 2, username: 'operador', email: 'operador@melotv.com', senha: 'operador123', role: 'Operador', status: 'ativo', data_criacao: '2025-01-15' }
+    ],
+    clientes: [
+        { id: 1, nome: 'João Silva', telefone: '11987654321', painel_id: 1, plano_id: 1, data_vencimento: '2025-02-20', status_pagamento: 'pago', status: 'ativo', data_cadastro: '2025-01-15' },
+        { id: 2, nome: 'Maria Santos', telefone: '11987654322', painel_id: 2, plano_id: 2, data_vencimento: '2025-02-25', status_pagamento: 'pendente', status: 'ativo', data_cadastro: '2025-01-16' }
+    ],
+    paineis: [
+        { id: 1, nome: 'America', status: 'ativo' },
+        { id: 2, nome: 'UNIPLAY', status: 'ativo' },
+        { id: 3, nome: 'P2CINE', status: 'ativo' },
+        { id: 4, nome: '2Live 21', status: 'ativo' },
+        { id: 5, nome: 'ANDS', status: 'ativo' },
+        { id: 6, nome: 'BRPRO', status: 'ativo' }
+    ],
+    planos: [
+        { id: 1, nome: 'Plano Basic', preco: 20 },
+        { id: 2, nome: 'Plano Plus', preco: 25 },
+        { id: 3, nome: 'Plano Premium', preco: 30 }
+    ],
+    assinaturas: [
+        { id: 1, cliente_id: 1, painel_id: 1, plano_id: 1, data_inicio: '2025-01-20', data_vencimento: '2025-02-20', status_pagamento: 'pago' }
+    ],
+    nextClienteId: 3,
+    nextAssinaturaId: 2,
+    nextUsuarioId: 3
+};
 
-// Initialize App
-document.addEventListener('DOMContentLoaded', function() {
-  initializeSampleData();
-  setupEventListeners();
-  checkLoginStatus();
+// ========== LOGIN ==========
+document.getElementById('login-form')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const user = document.getElementById('login-user').value;
+    const senha = document.getElementById('login-senha').value;
+    
+    const usuario = API.usuarios.find(u => u.username === user && u.senha === senha);
+    
+    if (usuario) {
+        usuarioLogado.id = usuario.id;
+        usuarioLogado.username = usuario.username;
+        usuarioLogado.role = usuario.role;
+        
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('sistema-container').style.display = 'block';
+        document.getElementById('user-display').textContent = usuario.username + ' (' + usuario.role + ')';
+        
+        if (usuario.role === 'Admin') {
+            document.getElementById('tab-admin').style.display = 'inline-block';
+        }
+        
+        inicializarSistema();
+    } else {
+        document.getElementById('login-erro').textContent = '❌ Usuário ou senha incorretos!';
+    }
 });
 
-// Check Login Status
-function checkLoginStatus() {
-  if (state.currentUser) {
-    showMainApp();
-  } else {
-    showLoginScreen();
-  }
+// ========== LOGOUT ==========
+document.getElementById('btn-logout')?.addEventListener('click', function() {
+    usuarioLogado.id = null;
+    usuarioLogado.username = '';
+    usuarioLogado.role = '';
+    
+    document.getElementById('login-container').style.display = 'flex';
+    document.getElementById('sistema-container').style.display = 'none';
+    document.getElementById('login-form').reset();
+    document.getElementById('login-erro').textContent = '';
+});
+
+// ========== FUNÇÕES UTILITÁRIAS ==========
+function formatarData(data) {
+    return new Date(data).toLocaleDateString('pt-BR');
 }
 
-function showLoginScreen() {
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('mainApp').style.display = 'none';
+function formatarMoeda(valor) {
+    return 'R$ ' + valor.toFixed(2).replace('.', ',');
 }
 
-function showMainApp() {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('mainApp').style.display = 'flex';
-  document.getElementById('currentUser').textContent = 'Usuário: ' + state.currentUser;
-  updateCurrentDate();
-  renderDashboard();
-  renderClientes();
-  renderAssinaturas();
-  renderPaineis();
-  renderRelatorios();
-}
-
-// Sample Data Generator
-function initializeSampleData() {
-  // Sample Clients
-  const sampleClientes = [
-    { nome: 'João Silva', email: 'joao.silva@email.com', telefone: '(11) 98765-4321', cpf: '123.456.789-00', endereco: 'Rua A, 123', status: 'ativo' },
-    { nome: 'Maria Santos', email: 'maria.santos@email.com', telefone: '(21) 99876-5432', cpf: '987.654.321-00', endereco: 'Av. B, 456', status: 'ativo' },
-    { nome: 'Pedro Oliveira', email: 'pedro.oliveira@email.com', telefone: '(31) 98765-1234', cpf: '456.789.123-00', endereco: 'Rua C, 789', status: 'ativo' },
-    { nome: 'Ana Costa', email: 'ana.costa@email.com', telefone: '(41) 97654-3210', cpf: '321.654.987-00', endereco: 'Av. D, 321', status: 'ativo' },
-    { nome: 'Carlos Souza', email: 'carlos.souza@email.com', telefone: '(51) 96543-2109', cpf: '654.321.987-00', endereco: 'Rua E, 654', status: 'inativo' }
-  ];
-
-  sampleClientes.forEach(cliente => {
-    addCliente(cliente, false);
-  });
-
-  // Sample Subscriptions
-  const today = new Date();
-  const subscriptions = [
-    { clienteId: 1, painelId: 1, planoId: 3, diasInicio: -30, diasVencimento: 0, status: 'pago' },
-    { clienteId: 2, painelId: 2, planoId: 2, diasInicio: -25, diasVencimento: 5, status: 'pago' },
-    { clienteId: 3, painelId: 3, planoId: 1, diasInicio: -20, diasVencimento: 10, status: 'pendente' },
-    { clienteId: 4, painelId: 1, planoId: 3, diasInicio: -15, diasVencimento: 15, status: 'pago' },
-    { clienteId: 1, painelId: 4, planoId: 2, diasInicio: -10, diasVencimento: 20, status: 'pendente' },
-    { clienteId: 2, painelId: 5, planoId: 1, diasInicio: -60, diasVencimento: -5, status: 'atrasado' }
-  ];
-
-  subscriptions.forEach(sub => {
-    const dataInicio = new Date(today);
-    dataInicio.setDate(dataInicio.getDate() + sub.diasInicio);
-    const dataVencimento = new Date(today);
-    dataVencimento.setDate(dataVencimento.getDate() + sub.diasVencimento);
-
-    addAssinatura({
-      cliente_id: sub.clienteId,
-      painel_id: sub.painelId,
-      plano_id: sub.planoId,
-      data_inicio: formatDateInput(dataInicio),
-      data_vencimento: formatDateInput(dataVencimento),
-      status_pagamento: sub.status
-    }, false);
-  });
-}
-
-// Event Listeners
-function setupEventListeners() {
-  // Tab Navigation
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+// ========== NAVEGAÇÃO ABAS ==========
+document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-      switchTab(this.dataset.tab);
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        document.getElementById(this.dataset.tab).classList.add('active');
     });
-  });
+});
 
-  // Report Tabs
-  document.querySelectorAll('.report-tab-btn').forEach(btn => {
+// ========== MODALS ==========
+const modals = {
+    cliente: document.getElementById('modal-cliente'),
+    usuario: document.getElementById('modal-usuario'),
+    trocarSenha: document.getElementById('modal-trocar-senha'),
+    assinatura: document.getElementById('modal-assinatura')
+};
+
+document.querySelectorAll('.close').forEach(btn => {
     btn.addEventListener('click', function() {
-      switchReportTab(this.dataset.report);
+        Object.values(modals).forEach(m => m.style.display = 'none');
     });
-  });
+});
 
-  // Search and Filter
-  document.getElementById('searchCliente')?.addEventListener('input', filterClientes);
-  document.getElementById('filterStatus')?.addEventListener('change', filterClientes);
-
-  // Select All Checkbox
-  document.getElementById('selectAll')?.addEventListener('change', function() {
-    const checkboxes = document.querySelectorAll('.cliente-checkbox');
-    checkboxes.forEach(cb => cb.checked = this.checked);
-    updateDeleteButton();
-  });
-
-  // Form Submissions
-  document.getElementById('formLogin')?.addEventListener('submit', handleLoginSubmit);
-  document.getElementById('formCliente')?.addEventListener('submit', handleClienteSubmit);
-  document.getElementById('formAssinatura')?.addEventListener('submit', handleAssinaturaSubmit);
-  document.getElementById('formPagamento')?.addEventListener('submit', handlePagamentoSubmit);
-
-  // Close modals on outside click
-  document.querySelectorAll('.modal').forEach(modal => {
-    modal.addEventListener('click', function(e) {
-      if (e.target === this) {
-        closeModal(this.id);
-      }
+window.addEventListener('click', (e) => {
+    Object.values(modals).forEach(m => {
+        if (e.target === m) m.style.display = 'none';
     });
-  });
-}
+});
 
-// Login Functions
-function handleLoginSubmit(e) {
-  e.preventDefault();
-  
-  const user = document.getElementById('loginUser').value;
-  const senha = document.getElementById('loginPassword').value;
-  const errorEl = document.getElementById('loginError');
-  
-  const usuario = state.usuarios.find(u => u.user === user && u.senha === senha);
-  
-  if (usuario) {
-    state.currentUser = usuario.user;
-    errorEl.classList.remove('active');
-    errorEl.textContent = '';
-    showMainApp();
-  } else {
-    errorEl.textContent = 'Usuário ou senha incorretos!';
-    errorEl.classList.add('active');
-  }
-}
+// ========== DASHBOARD ==========
+let chartInstances = {};
 
-function logout() {
-  if (confirm('Deseja realmente sair do sistema?')) {
-    state.currentUser = null;
-    document.getElementById('formLogin').reset();
-    showLoginScreen();
-  }
-}
-
-// Tab Switching
-function switchTab(tabName) {
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  
-  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-  document.getElementById(tabName).classList.add('active');
-
-  // Refresh content when switching tabs
-  if (tabName === 'dashboard') renderDashboard();
-  if (tabName === 'clientes') renderClientes();
-  if (tabName === 'assinaturas') renderAssinaturas();
-  if (tabName === 'paineis') renderPaineis();
-  if (tabName === 'relatorios') renderRelatorios();
-}
-
-function switchReportTab(tabName) {
-  document.querySelectorAll('.report-tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.report-content').forEach(content => content.classList.remove('active'));
-  
-  document.querySelector(`[data-report="${tabName}"]`).classList.add('active');
-  document.getElementById(tabName).classList.add('active');
-}
-
-// Update Current Date
-function updateCurrentDate() {
-  const dateEl = document.getElementById('currentDate');
-  const now = new Date();
-  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  dateEl.textContent = now.toLocaleDateString('pt-BR', options);
-}
-
-// DASHBOARD Functions
-function renderDashboard() {
-  updateStats();
-  renderCharts();
-  renderVencimentosProximos();
-}
-
-function updateStats() {
-  const totalClientes = state.clientes.filter(c => c.status === 'ativo').length;
-  const assinaturasAtivas = state.assinaturas.filter(a => a.status_pagamento === 'pago').length;
-  const receitaMensal = calculateReceitaMensal();
-  const pagamentosPendentes = state.assinaturas.filter(a => a.status_pagamento === 'pendente').length;
-
-  document.getElementById('totalClientes').textContent = totalClientes;
-  document.getElementById('assinaturasAtivas').textContent = assinaturasAtivas;
-  document.getElementById('receitaMensal').textContent = formatCurrency(receitaMensal);
-  document.getElementById('pagamentosPendentes').textContent = pagamentosPendentes;
-}
-
-function calculateReceitaMensal() {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-
-  return state.assinaturas
-    .filter(a => {
-      const vencimento = new Date(a.data_vencimento);
-      return vencimento.getMonth() === currentMonth && 
-             vencimento.getFullYear() === currentYear &&
-             a.status_pagamento === 'pago';
-    })
-    .reduce((sum, a) => {
-      const plano = state.planos.find(p => p.id === a.plano_id);
-      return sum + (plano ? plano.preco : 0);
+function atualizarDashboard() {
+    document.getElementById('total-clientes').textContent = API.clientes.length;
+    document.getElementById('total-assinaturas').textContent = API.assinaturas.length;
+    
+    const receita = API.assinaturas.reduce((sum, a) => {
+        const plano = API.planos.find(p => p.id === a.plano_id);
+        return sum + plano.preco;
     }, 0);
-}
-
-function renderCharts() {
-  renderReceitaChart();
-  renderPlanosChart();
-  renderPaineisChart();
-}
-
-function renderReceitaChart() {
-  const ctx = document.getElementById('chartReceita');
-  if (!ctx) return;
-
-  if (charts.receita) charts.receita.destroy();
-
-  const data = getReceitaMensalData();
-  
-  charts.receita = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: data.labels,
-      datasets: [{
-        label: 'Receita (R$)',
-        data: data.values,
-        borderColor: '#0066CC',
-        backgroundColor: 'rgba(0, 102, 204, 0.1)',
-        tension: 0.4,
-        fill: true
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
-  });
-}
-
-function getReceitaMensalData() {
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const labels = [];
-  const values = [];
-
-  for (let i = 5; i >= 0; i--) {
-    const monthIndex = (currentMonth - i + 12) % 12;
-    labels.push(months[monthIndex]);
+    document.getElementById('receita-mensal').textContent = formatarMoeda(receita);
     
-    const receita = state.assinaturas
-      .filter(a => {
-        const vencimento = new Date(a.data_vencimento);
-        return vencimento.getMonth() === monthIndex && a.status_pagamento === 'pago';
-      })
-      .reduce((sum, a) => {
-        const plano = state.planos.find(p => p.id === a.plano_id);
-        return sum + (plano ? plano.preco : 0);
-      }, 0);
-    
-    values.push(receita);
-  }
+    const pendentes = API.assinaturas.filter(a => a.status_pagamento === 'pendente').length;
+    document.getElementById('pagamentos-pendentes').textContent = pendentes;
 
-  return { labels, values };
-}
+    if (document.getElementById('receitaChart')) {
+        if (chartInstances.receita) chartInstances.receita.destroy();
+        const ctx1 = document.getElementById('receitaChart').getContext('2d');
+        chartInstances.receita = new Chart(ctx1, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+                datasets: [{
+                    label: 'Receita Mensal',
+                    data: [receita*0.8, receita*0.9, receita, receita*1.1, receita*0.95, receita],
+                    borderColor: '#0066CC',
+                    backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true }
+        });
 
-function renderPlanosChart() {
-  const ctx = document.getElementById('chartPlanos');
-  if (!ctx) return;
-
-  if (charts.planos) charts.planos.destroy();
-
-  const data = state.planos.map(plano => {
-    return state.assinaturas.filter(a => a.plano_id === plano.id).length;
-  });
-
-  charts.planos = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: state.planos.map(p => p.nome),
-      datasets: [{
-        data: data,
-        backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C']
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
+        if (chartInstances.plano) chartInstances.plano.destroy();
+        const ctx2 = document.getElementById('planoChart').getContext('2d');
+        chartInstances.plano = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: API.planos.map(p => p.nome),
+                datasets: [{
+                    data: API.planos.map(p => API.assinaturas.filter(a => a.plano_id === p.id).length),
+                    backgroundColor: ['#0066CC', '#FFCC00', '#000000']
+                }]
+            },
+            options: { responsive: true }
+        });
     }
-  });
-}
 
-function renderPaineisChart() {
-  const ctx = document.getElementById('chartPaineis');
-  if (!ctx) return;
-
-  if (charts.paineis) charts.paineis.destroy();
-
-  const data = state.paineis.map(painel => {
-    return state.assinaturas.filter(a => a.painel_id === painel.id).length;
-  });
-
-  charts.paineis = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: state.paineis.map(p => p.nome),
-      datasets: [{
-        label: 'Assinaturas',
-        data: data,
-        backgroundColor: '#FFCC00'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
-  });
-}
-
-function renderVencimentosProximos() {
-  const container = document.getElementById('vencimentosProximos');
-  if (!container) return;
-
-  const today = new Date();
-  const nextWeek = new Date(today);
-  nextWeek.setDate(nextWeek.getDate() + 7);
-
-  const vencimentos = state.assinaturas
-    .filter(a => {
-      const vencimento = new Date(a.data_vencimento);
-      return vencimento >= today && vencimento <= nextWeek;
-    })
-    .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
-    .slice(0, 5);
-
-  if (vencimentos.length === 0) {
-    container.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">Nenhum vencimento nos próximos 7 dias</p>';
-    return;
-  }
-
-  container.innerHTML = vencimentos.map(a => {
-    const cliente = state.clientes.find(c => c.id === a.cliente_id);
-    const plano = state.planos.find(p => p.id === a.plano_id);
-    return `
-      <div class="vencimento-item">
-        <div class="vencimento-info">
-          <strong>${cliente ? cliente.nome : 'N/A'}</strong>
-          <small>${plano ? plano.nome : 'N/A'} - ${formatCurrency(plano ? plano.preco : 0)}</small>
-        </div>
-        <div class="vencimento-date">${formatDate(a.data_vencimento)}</div>
-      </div>
-    `;
-  }).join('');
-}
-
-// CLIENTES Functions
-function renderClientes() {
-  filterClientes();
-}
-
-function filterClientes() {
-  const searchTerm = document.getElementById('searchCliente')?.value.toLowerCase() || '';
-  const statusFilter = document.getElementById('filterStatus')?.value || '';
-
-  let filtered = state.clientes.filter(cliente => {
-    const matchSearch = cliente.nome.toLowerCase().includes(searchTerm) || 
-                       cliente.email.toLowerCase().includes(searchTerm);
-    const matchStatus = !statusFilter || cliente.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  renderClientesTable(filtered);
-}
-
-function renderClientesTable(clientes) {
-  const tbody = document.getElementById('clientesTableBody');
-  if (!tbody) return;
-
-  if (clientes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: #999;">Nenhum cliente encontrado</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = clientes.map(cliente => {
-    const assinatura = state.assinaturas.find(a => a.cliente_id === cliente.id);
-    const painel = assinatura ? state.paineis.find(p => p.id === assinatura.painel_id) : null;
-    const plano = assinatura ? state.planos.find(p => p.id === assinatura.plano_id) : null;
-    
-    return `
-    <tr>
-      <td><input type="checkbox" class="cliente-checkbox" data-id="${cliente.id}" onchange="updateDeleteButton()"></td>
-      <td>${cliente.id}</td>
-      <td>${cliente.nome}</td>
-      <td>${cliente.email}</td>
-      <td>${cliente.telefone}</td>
-      <td>${painel ? painel.nome : 'N/A'}</td>
-      <td>${plano ? plano.nome : 'N/A'}</td>
-      <td>${assinatura ? formatDate(assinatura.data_vencimento) : 'N/A'}</td>
-      <td><span class="status-badge status-${cliente.status}">${cliente.status}</span></td>
-      <td>
-        <div class="action-buttons">
-          <button class="btn btn-info btn-sm" onclick="editCliente(${cliente.id})">✏️ Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteCliente(${cliente.id})">🗑️ Deletar</button>
-        </div>
-      </td>
-    </tr>
-    `;
-  }).join('');
-}
-
-function updateDeleteButton() {
-  const checkboxes = document.querySelectorAll('.cliente-checkbox:checked');
-  const btn = document.getElementById('btnDeleteSelected');
-  if (btn) {
-    btn.style.display = checkboxes.length > 0 ? 'block' : 'none';
-  }
-}
-
-function openClienteModal(id = null) {
-  const modal = document.getElementById('modalCliente');
-  const form = document.getElementById('formCliente');
-  const title = document.getElementById('modalClienteTitle');
-
-  form.reset();
-  populateClientePainelPlanoSelects();
-
-  if (id) {
-    const cliente = state.clientes.find(c => c.id === id);
-    if (cliente) {
-      title.textContent = 'Editar Cliente';
-      document.getElementById('clienteId').value = cliente.id;
-      document.getElementById('clienteNome').value = cliente.nome;
-      document.getElementById('clienteEmail').value = cliente.email;
-      document.getElementById('clienteTelefone').value = cliente.telefone;
-      document.getElementById('clienteCPF').value = cliente.cpf;
-      document.getElementById('clienteEndereco').value = cliente.endereco || '';
-      
-      // Find cliente's active subscription
-      const assinatura = state.assinaturas.find(a => a.cliente_id === cliente.id);
-      if (assinatura) {
-        document.getElementById('clientePainel').value = assinatura.painel_id;
-        document.getElementById('clientePlano').value = assinatura.plano_id;
-        document.getElementById('clienteDataInicio').value = assinatura.data_inicio;
-        document.getElementById('clienteDataVencimento').value = assinatura.data_vencimento;
-        document.getElementById('clienteStatusPagamento').value = assinatura.status_pagamento;
-      }
-      
-      document.getElementById('clienteStatus').value = cliente.status;
-    }
-  } else {
-    title.textContent = 'Novo Cliente';
-    const today = new Date();
-    const nextMonth = new Date(today);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    document.getElementById('clienteDataInicio').value = formatDateInput(today);
-    document.getElementById('clienteDataVencimento').value = formatDateInput(nextMonth);
-    document.getElementById('clienteStatusPagamento').value = 'pendente';
-    document.getElementById('clienteStatus').value = 'ativo';
-  }
-
-  modal.classList.add('active');
-}
-
-function populateClientePainelPlanoSelects() {
-  const painelSelect = document.getElementById('clientePainel');
-  const planoSelect = document.getElementById('clientePlano');
-
-  painelSelect.innerHTML = '<option value="">Selecione um painel</option>' +
-    state.paineis.filter(p => p.status === 'ativo').map(p => 
-      `<option value="${p.id}">${p.nome}</option>`
-    ).join('');
-
-  planoSelect.innerHTML = '<option value="">Selecione um plano</option>' +
-    state.planos.map(p => 
-      `<option value="${p.id}">${p.nome} - ${formatCurrency(p.preco)}</option>`
-    ).join('');
-}
-
-function handleClienteSubmit(e) {
-  e.preventDefault();
-
-  const id = document.getElementById('clienteId').value;
-  const clienteData = {
-    nome: document.getElementById('clienteNome').value,
-    email: document.getElementById('clienteEmail').value,
-    telefone: document.getElementById('clienteTelefone').value,
-    cpf: document.getElementById('clienteCPF').value,
-    endereco: document.getElementById('clienteEndereco').value,
-    status: document.getElementById('clienteStatus').value
-  };
-  
-  const assinaturaData = {
-    painel_id: parseInt(document.getElementById('clientePainel').value),
-    plano_id: parseInt(document.getElementById('clientePlano').value),
-    data_inicio: document.getElementById('clienteDataInicio').value,
-    data_vencimento: document.getElementById('clienteDataVencimento').value,
-    status_pagamento: document.getElementById('clienteStatusPagamento').value
-  };
-
-  // Validation
-  if (!validateEmail(clienteData.email)) {
-    alert('Email inválido!');
-    return;
-  }
-
-  if (!validateTelefone(clienteData.telefone)) {
-    alert('Telefone inválido! Use o formato (00) 00000-0000');
-    return;
-  }
-
-  if (!validateCPF(clienteData.cpf)) {
-    alert('CPF inválido! Use o formato 000.000.000-00');
-    return;
-  }
-
-  // Check for duplicate email
-  const duplicate = state.clientes.find(c => 
-    c.email === clienteData.email && c.id !== parseInt(id)
-  );
-  if (duplicate) {
-    alert('Este email já está cadastrado!');
-    return;
-  }
-
-  if (id) {
-    updateCliente(parseInt(id), clienteData);
-    // Update existing subscription
-    const assinatura = state.assinaturas.find(a => a.cliente_id === parseInt(id));
-    if (assinatura) {
-      updateAssinatura(assinatura.id, { ...assinaturaData, cliente_id: parseInt(id) });
-    } else {
-      addAssinatura({ ...assinaturaData, cliente_id: parseInt(id) }, false);
-    }
-  } else {
-    const clienteId = addCliente(clienteData);
-    // Create subscription for new client
-    addAssinatura({ ...assinaturaData, cliente_id: clienteId }, false);
-  }
-
-  closeModal('modalCliente');
-  renderClientes();
-  renderDashboard();
-}
-
-function addCliente(data, showAlert = true) {
-  const cliente = {
-    id: state.nextClienteId++,
-    ...data,
-    data_cadastro: data.data_cadastro || new Date().toISOString().split('T')[0]
-  };
-  state.clientes.push(cliente);
-  if (showAlert) alert('Cliente cadastrado com sucesso!');
-  return cliente.id;
-}
-
-function updateCliente(id, data) {
-  const index = state.clientes.findIndex(c => c.id === id);
-  if (index !== -1) {
-    state.clientes[index] = { ...state.clientes[index], ...data };
-    alert('Cliente atualizado com sucesso!');
-  }
-}
-
-function editCliente(id) {
-  openClienteModal(id);
-}
-
-function deleteCliente(id) {
-  if (confirm('Tem certeza que deseja deletar este cliente?')) {
-    const index = state.clientes.findIndex(c => c.id === id);
-    if (index !== -1) {
-      state.clientes[index].status = 'inativo';
-      renderClientes();
-      renderDashboard();
-      alert('Cliente deletado com sucesso!');
-    }
-  }
-}
-
-function deleteSelectedClientes() {
-  const checkboxes = document.querySelectorAll('.cliente-checkbox:checked');
-  if (checkboxes.length === 0) return;
-
-  if (confirm(`Tem certeza que deseja deletar ${checkboxes.length} cliente(s)?`)) {
-    checkboxes.forEach(cb => {
-      const id = parseInt(cb.dataset.id);
-      const index = state.clientes.findIndex(c => c.id === id);
-      if (index !== -1) {
-        state.clientes[index].status = 'inativo';
-      }
+    const hoje = new Date();
+    const vencimentos = API.assinaturas.filter(a => {
+        const venc = new Date(a.data_vencimento);
+        const dias = (venc - hoje) / (1000 * 60 * 60 * 24);
+        return dias >= 0 && dias <= 7;
     });
-    document.getElementById('selectAll').checked = false;
-    renderClientes();
-    renderDashboard();
-    alert('Clientes deletados com sucesso!');
-  }
+
+    document.getElementById('lista-vencimentos').innerHTML = vencimentos.map(v => {
+        const cliente = API.clientes.find(c => c.id === v.cliente_id);
+        const painel = API.paineis.find(p => p.id === v.painel_id);
+        return `<p>📅 ${cliente?.nome || 'N/A'} - ${painel?.nome || 'N/A'} - Vence em ${formatarData(v.data_vencimento)}</p>`;
+    }).join('') || '<p>Nenhum vencimento próximo</p>';
 }
 
-// ASSINATURAS Functions
-function renderAssinaturas() {
-  const tbody = document.getElementById('assinaturasTableBody');
-  if (!tbody) return;
-
-  if (state.assinaturas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #999;">Nenhuma assinatura cadastrada</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = state.assinaturas.map(assinatura => {
-    const cliente = state.clientes.find(c => c.id === assinatura.cliente_id);
-    const painel = state.paineis.find(p => p.id === assinatura.painel_id);
-    const plano = state.planos.find(p => p.id === assinatura.plano_id);
-
-    return `
-      <tr>
-        <td>${assinatura.id}</td>
-        <td>${cliente ? cliente.nome : 'N/A'}</td>
-        <td>${painel ? painel.nome : 'N/A'}</td>
-        <td>${plano ? plano.nome : 'N/A'} (${formatCurrency(plano ? plano.preco : 0)})</td>
-        <td>${formatDate(assinatura.data_inicio)}</td>
-        <td>${formatDate(assinatura.data_vencimento)}</td>
-        <td><span class="status-badge status-${assinatura.status_pagamento}">${assinatura.status_pagamento}</span></td>
-        <td>
-          <div class="action-buttons">
-            <button class="btn btn-info btn-sm" onclick="editAssinatura(${assinatura.id})">✏️ Editar</button>
-            <button class="btn btn-success btn-sm" onclick="openPagamentoModal(${assinatura.id})">💰 Pagar</button>
-            <button class="btn btn-secondary btn-sm" onclick="viewAssinaturaDetalhes(${assinatura.id})">👁️ Ver</button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function openAssinaturaModal(id = null) {
-  const modal = document.getElementById('modalAssinatura');
-  const form = document.getElementById('formAssinatura');
-  const title = document.getElementById('modalAssinaturaTitle');
-
-  form.reset();
-  populateAssinaturaSelects();
-
-  if (id) {
-    const assinatura = state.assinaturas.find(a => a.id === id);
-    if (assinatura) {
-      title.textContent = 'Editar Assinatura';
-      document.getElementById('assinaturaId').value = assinatura.id;
-      document.getElementById('assinaturaCliente').value = assinatura.cliente_id;
-      document.getElementById('assinaturaPainel').value = assinatura.painel_id;
-      document.getElementById('assinaturaPlano').value = assinatura.plano_id;
-      document.getElementById('assinaturaDataInicio').value = assinatura.data_inicio;
-      document.getElementById('assinaturaDataVencimento').value = assinatura.data_vencimento;
-      document.getElementById('assinaturaStatusPagamento').value = assinatura.status_pagamento;
-    }
-  } else {
-    title.textContent = 'Nova Assinatura';
-    const today = new Date();
-    const nextMonth = new Date(today);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-    document.getElementById('assinaturaDataInicio').value = formatDateInput(today);
-    document.getElementById('assinaturaDataVencimento').value = formatDateInput(nextMonth);
-    document.getElementById('assinaturaStatusPagamento').value = 'pendente';
-  }
-
-  modal.classList.add('active');
-}
-
-function populateAssinaturaSelects() {
-  const clienteSelect = document.getElementById('assinaturaCliente');
-  const painelSelect = document.getElementById('assinaturaPainel');
-  const planoSelect = document.getElementById('assinaturaPlano');
-
-  clienteSelect.innerHTML = '<option value="">Selecione um cliente</option>' +
-    state.clientes.filter(c => c.status === 'ativo').map(c => 
-      `<option value="${c.id}">${c.nome}</option>`
-    ).join('');
-
-  painelSelect.innerHTML = '<option value="">Selecione um painel</option>' +
-    state.paineis.filter(p => p.status === 'ativo').map(p => 
-      `<option value="${p.id}">${p.nome}</option>`
-    ).join('');
-
-  planoSelect.innerHTML = '<option value="">Selecione um plano</option>' +
-    state.planos.map(p => 
-      `<option value="${p.id}">${p.nome} - ${formatCurrency(p.preco)}</option>`
-    ).join('');
-}
-
-function handleAssinaturaSubmit(e) {
-  e.preventDefault();
-
-  const id = document.getElementById('assinaturaId').value;
-  const assinaturaData = {
-    cliente_id: parseInt(document.getElementById('assinaturaCliente').value),
-    painel_id: parseInt(document.getElementById('assinaturaPainel').value),
-    plano_id: parseInt(document.getElementById('assinaturaPlano').value),
-    data_inicio: document.getElementById('assinaturaDataInicio').value,
-    data_vencimento: document.getElementById('assinaturaDataVencimento').value,
-    status_pagamento: document.getElementById('assinaturaStatusPagamento').value
-  };
-
-  if (id) {
-    updateAssinatura(parseInt(id), assinaturaData);
-  } else {
-    addAssinatura(assinaturaData);
-  }
-
-  closeModal('modalAssinatura');
-  renderAssinaturas();
-  renderDashboard();
-}
-
-function addAssinatura(data, showAlert = true) {
-  const assinatura = {
-    id: state.nextAssinaturaId++,
-    ...data
-  };
-  state.assinaturas.push(assinatura);
-  if (showAlert) alert('Assinatura criada com sucesso!');
-}
-
-function updateAssinatura(id, data) {
-  const index = state.assinaturas.findIndex(a => a.id === id);
-  if (index !== -1) {
-    state.assinaturas[index] = { ...state.assinaturas[index], ...data };
-    alert('Assinatura atualizada com sucesso!');
-  }
-}
-
-function editAssinatura(id) {
-  openAssinaturaModal(id);
-}
-
-function viewAssinaturaDetalhes(id) {
-  const assinatura = state.assinaturas.find(a => a.id === id);
-  if (!assinatura) return;
-
-  const cliente = state.clientes.find(c => c.id === assinatura.cliente_id);
-  const painel = state.paineis.find(p => p.id === assinatura.painel_id);
-  const plano = state.planos.find(p => p.id === assinatura.plano_id);
-  const pagamentos = state.pagamentos.filter(p => p.assinatura_id === assinatura.id);
-
-  const content = `
-    <div class="detalhe-row">
-      <div class="detalhe-label">ID:</div>
-      <div class="detalhe-value">${assinatura.id}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Cliente:</div>
-      <div class="detalhe-value">${cliente ? cliente.nome : 'N/A'}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Email:</div>
-      <div class="detalhe-value">${cliente ? cliente.email : 'N/A'}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Painel:</div>
-      <div class="detalhe-value">${painel ? painel.nome : 'N/A'}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Plano:</div>
-      <div class="detalhe-value">${plano ? plano.nome : 'N/A'} - ${formatCurrency(plano ? plano.preco : 0)}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Data Início:</div>
-      <div class="detalhe-value">${formatDate(assinatura.data_inicio)}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Data Vencimento:</div>
-      <div class="detalhe-value">${formatDate(assinatura.data_vencimento)}</div>
-    </div>
-    <div class="detalhe-row">
-      <div class="detalhe-label">Status Pagamento:</div>
-      <div class="detalhe-value"><span class="status-badge status-${assinatura.status_pagamento}">${assinatura.status_pagamento}</span></div>
-    </div>
-    ${pagamentos.length > 0 ? `
-      <div style="margin-top: 20px;">
-        <h4>Histórico de Pagamentos</h4>
-        ${pagamentos.map(p => `
-          <div class="detalhe-row">
-            <div class="detalhe-label">${formatDate(p.data_pagamento)}:</div>
-            <div class="detalhe-value">${formatCurrency(p.valor)} - ${p.metodo}</div>
-          </div>
-        `).join('')}
-      </div>
-    ` : ''}
-  `;
-
-  document.getElementById('detalhesContent').innerHTML = content;
-  document.getElementById('modalDetalhes').classList.add('active');
-}
-
-function openPagamentoModal(assinaturaId) {
-  const modal = document.getElementById('modalPagamento');
-  const form = document.getElementById('formPagamento');
-  const assinatura = state.assinaturas.find(a => a.id === assinaturaId);
-  const plano = state.planos.find(p => p.id === assinatura.plano_id);
-
-  form.reset();
-  document.getElementById('pagamentoAssinaturaId').value = assinaturaId;
-  document.getElementById('pagamentoData').value = formatDateInput(new Date());
-  document.getElementById('pagamentoValor').value = plano ? plano.preco : 0;
-  document.getElementById('pagamentoMetodo').value = 'pix';
-
-  modal.classList.add('active');
-}
-
-function handlePagamentoSubmit(e) {
-  e.preventDefault();
-
-  const pagamento = {
-    id: state.nextPagamentoId++,
-    assinatura_id: parseInt(document.getElementById('pagamentoAssinaturaId').value),
-    data_pagamento: document.getElementById('pagamentoData').value,
-    valor: parseFloat(document.getElementById('pagamentoValor').value),
-    metodo: document.getElementById('pagamentoMetodo').value
-  };
-
-  state.pagamentos.push(pagamento);
-
-  // Update assinatura status
-  const assinatura = state.assinaturas.find(a => a.id === pagamento.assinatura_id);
-  if (assinatura) {
-    assinatura.status_pagamento = 'pago';
-  }
-
-  closeModal('modalPagamento');
-  renderAssinaturas();
-  renderDashboard();
-  alert('Pagamento registrado com sucesso!');
-}
-
-// PAINÉIS Functions
-function renderPaineis() {
-  const tbody = document.getElementById('paineisTableBody');
-  if (!tbody) return;
-
-  tbody.innerHTML = state.paineis.map(painel => {
-    const assinaturas = state.assinaturas.filter(a => a.painel_id === painel.id);
-    const receita = assinaturas.reduce((sum, a) => {
-      if (a.status_pagamento === 'pago') {
-        const plano = state.planos.find(p => p.id === a.plano_id);
-        return sum + (plano ? plano.preco : 0);
-      }
-      return sum;
-    }, 0);
-
-    return `
-      <tr>
-        <td>${painel.id}</td>
-        <td>${painel.nome}</td>
-        <td>
-          <label class="toggle-switch">
-            <input type="checkbox" ${painel.status === 'ativo' ? 'checked' : ''} 
-                   onchange="togglePainelStatus(${painel.id})">
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="status-badge status-${painel.status}">${painel.status}</span>
-        </td>
-        <td>${assinaturas.length}</td>
-        <td>${formatCurrency(receita)}</td>
-        <td>
-          <button class="btn btn-info btn-sm" onclick="viewPainelAssinaturas(${painel.id})">👁️ Ver Assinaturas</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function togglePainelStatus(id) {
-  const painel = state.paineis.find(p => p.id === id);
-  if (painel) {
-    painel.status = painel.status === 'ativo' ? 'inativo' : 'ativo';
-    renderPaineis();
-    renderDashboard();
-  }
-}
-
-function viewPainelAssinaturas(painelId) {
-  const painel = state.paineis.find(p => p.id === painelId);
-  if (!painel) return;
-
-  const assinaturas = state.assinaturas.filter(a => a.painel_id === painelId);
-
-  document.getElementById('painelModalTitle').textContent = `Assinaturas do Painel ${painel.nome}`;
-  const tbody = document.getElementById('painelAssinaturasBody');
-
-  if (assinaturas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #999;">Nenhuma assinatura neste painel</td></tr>';
-  } else {
-    tbody.innerHTML = assinaturas.map(a => {
-      const cliente = state.clientes.find(c => c.id === a.cliente_id);
-      const plano = state.planos.find(p => p.id === a.plano_id);
-
-      return `
-        <tr>
-          <td>${cliente ? cliente.nome : 'N/A'}</td>
-          <td>${plano ? plano.nome : 'N/A'}</td>
-          <td>${formatDate(a.data_inicio)}</td>
-          <td>${formatDate(a.data_vencimento)}</td>
-          <td><span class="status-badge status-${a.status_pagamento}">${a.status_pagamento}</span></td>
-        </tr>
-      `;
+// ========== CLIENTES ==========
+function listarClientes() {
+    document.getElementById('tabela-clientes').innerHTML = API.clientes.map(c => {
+        const painel = API.paineis.find(p => p.id === c.painel_id);
+        const plano = API.planos.find(p => p.id === c.plano_id);
+        return `
+            <tr>
+                <td><input type="checkbox" class="cliente-checkbox" value="${c.id}"></td>
+                <td>${c.id}</td>
+                <td>${c.nome}</td>
+                <td>${c.telefone}</td>
+                <td>${painel?.nome || 'N/A'}</td>
+                <td>${plano?.nome || 'N/A'}</td>
+                <td>${formatarData(c.data_vencimento)}</td>
+                <td><span class="status ${c.status_pagamento}">${c.status_pagamento}</span></td>
+                <td><span class="status ${c.status}">${c.status}</span></td>
+                <td>
+                    <button class="btn btn-secondary" onclick="editarCliente(${c.id})">✏️</button>
+                    <button class="btn btn-danger" onclick="deletarClienteUnico(${c.id})">🗑️</button>
+                </td>
+            </tr>
+        `;
     }).join('');
-  }
 
-  document.getElementById('modalPainelAssinaturas').classList.add('active');
+    atualizarBotaoDeletarSelecionados();
+    adicionarEventosCheckbox();
 }
 
-// RELATÓRIOS Functions
-function renderRelatorios() {
-  renderReceitaMensalReport();
-  renderReceitaPorPlano();
-  renderVencimentosReport();
-  renderUltimosCadastros();
-  renderReceitaPaineisChart();
-  renderTopPaineis();
-}
-
-function renderReceitaMensalReport() {
-  const ctx = document.getElementById('chartReceitaMensal');
-  if (!ctx) return;
-
-  if (charts.receitaMensal) charts.receitaMensal.destroy();
-
-  const data = getReceitaMensalData();
-  
-  charts.receitaMensal = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: data.labels,
-      datasets: [{
-        label: 'Receita (R$)',
-        data: data.values,
-        borderColor: '#0066CC',
-        backgroundColor: 'rgba(0, 102, 204, 0.1)',
-        tension: 0.4,
-        fill: true
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true }
-      }
+function atualizarBotaoDeletarSelecionados() {
+    const selecionados = document.querySelectorAll('.cliente-checkbox:checked').length;
+    const btn = document.getElementById('btn-deletar-selecionados');
+    if (btn) {
+        btn.style.display = selecionados > 0 ? 'block' : 'none';
     }
-  });
 }
 
-function renderReceitaPorPlano() {
-  const container = document.getElementById('receitaPorPlano');
-  if (!container) return;
+function adicionarEventosCheckbox() {
+    document.querySelectorAll('.cliente-checkbox').forEach(cb => {
+        cb.removeEventListener('change', atualizarBotaoDeletarSelecionados);
+        cb.addEventListener('change', atualizarBotaoDeletarSelecionados);
+    });
 
-  const stats = state.planos.map(plano => {
-    const receita = state.assinaturas
-      .filter(a => a.plano_id === plano.id && a.status_pagamento === 'pago')
-      .reduce((sum, a) => sum + plano.preco, 0);
-    return { nome: plano.nome, receita };
-  });
-
-  container.innerHTML = stats.map(s => `
-    <div class="stat-row">
-      <strong>${s.nome}</strong>
-      <span>${formatCurrency(s.receita)}</span>
-    </div>
-  `).join('');
-}
-
-function renderVencimentosReport() {
-  const tbody = document.getElementById('reportVencimentos');
-  if (!tbody) return;
-
-  const today = new Date();
-  const nextWeek = new Date(today);
-  nextWeek.setDate(nextWeek.getDate() + 7);
-
-  const vencimentos = state.assinaturas
-    .filter(a => {
-      const vencimento = new Date(a.data_vencimento);
-      return vencimento >= today && vencimento <= nextWeek;
-    })
-    .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
-
-  if (vencimentos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 40px; color: #999;">Nenhum vencimento nos próximos 7 dias</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = vencimentos.map(a => {
-    const cliente = state.clientes.find(c => c.id === a.cliente_id);
-    const plano = state.planos.find(p => p.id === a.plano_id);
-
-    return `
-      <tr>
-        <td>${cliente ? cliente.nome : 'N/A'}</td>
-        <td>${cliente ? cliente.email : 'N/A'}</td>
-        <td>${formatDate(a.data_vencimento)}</td>
-        <td>${plano ? plano.nome : 'N/A'}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function renderUltimosCadastros() {
-  const tbody = document.getElementById('reportUltimosCadastros');
-  if (!tbody) return;
-
-  const ultimos = [...state.clientes]
-    .sort((a, b) => new Date(b.data_cadastro) - new Date(a.data_cadastro))
-    .slice(0, 10);
-
-  tbody.innerHTML = ultimos.map(c => `
-    <tr>
-      <td>${c.nome}</td>
-      <td>${c.email}</td>
-      <td>${formatDate(c.data_cadastro)}</td>
-    </tr>
-  `).join('');
-}
-
-function renderReceitaPaineisChart() {
-  const ctx = document.getElementById('chartReceitaPaineis');
-  if (!ctx) return;
-
-  if (charts.receitaPaineis) charts.receitaPaineis.destroy();
-
-  const data = state.paineis.map(painel => {
-    return state.assinaturas
-      .filter(a => a.painel_id === painel.id && a.status_pagamento === 'pago')
-      .reduce((sum, a) => {
-        const plano = state.planos.find(p => p.id === a.plano_id);
-        return sum + (plano ? plano.preco : 0);
-      }, 0);
-  });
-
-  charts.receitaPaineis = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: state.paineis.map(p => p.nome),
-      datasets: [{
-        label: 'Receita (R$)',
-        data: data,
-        backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545']
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true }
-      }
+    const checkboxTodos = document.getElementById('checkbox-todos');
+    if (checkboxTodos) {
+        checkboxTodos.removeEventListener('change', toggleTodosCheckboxes);
+        checkboxTodos.addEventListener('change', toggleTodosCheckboxes);
     }
-  });
 }
 
-function renderTopPaineis() {
-  const container = document.getElementById('topPaineis');
-  if (!container) return;
-
-  const stats = state.paineis.map(painel => {
-    const assinaturas = state.assinaturas.filter(a => a.painel_id === painel.id);
-    const receita = assinaturas
-      .filter(a => a.status_pagamento === 'pago')
-      .reduce((sum, a) => {
-        const plano = state.planos.find(p => p.id === a.plano_id);
-        return sum + (plano ? plano.preco : 0);
-      }, 0);
-    return { nome: painel.nome, receita, assinaturas: assinaturas.length };
-  }).sort((a, b) => b.receita - a.receita);
-
-  container.innerHTML = stats.map(s => `
-    <div class="stat-row">
-      <strong>${s.nome}</strong>
-      <span>${formatCurrency(s.receita)} (${s.assinaturas} assinaturas)</span>
-    </div>
-  `).join('');
+function toggleTodosCheckboxes() {
+    const checkboxTodos = document.getElementById('checkbox-todos');
+    document.querySelectorAll('.cliente-checkbox').forEach(cb => {
+        cb.checked = checkboxTodos.checked;
+    });
+    atualizarBotaoDeletarSelecionados();
 }
 
-// Export Functions
-function exportPDF() {
-  alert('Exportando relatório em PDF...\n\nEsta funcionalidade está simulada. Em produção, seria gerado um PDF com os dados do sistema.');
+document.getElementById('btn-deletar-selecionados')?.addEventListener('click', function() {
+    const checkboxes = document.querySelectorAll('.cliente-checkbox:checked');
+    const selecionados = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    if (selecionados.length === 0) {
+        alert('Selecione ao menos um cliente!');
+        return;
+    }
+    
+    if (confirm(`Deletar ${selecionados.length} cliente(s)? Esta ação é irreversível!`)) {
+        API.clientes = API.clientes.filter(c => !selecionados.includes(c.id));
+        listarClientes();
+        atualizarDashboard();
+        alert('✅ Cliente(s) deletado(s) com sucesso!');
+    }
+});
+
+document.getElementById('btn-novo-cliente')?.addEventListener('click', () => {
+    document.getElementById('form-cliente').reset();
+    document.getElementById('cliente-id').value = '';
+    popularSelectsCliente();
+    modals.cliente.style.display = 'block';
+});
+
+function popularSelectsCliente() {
+    const selectPainel = document.getElementById('cliente-painel');
+    selectPainel.innerHTML = '<option value="">Selecione um Painel *</option>' + API.paineis.map(p => 
+        `<option value="${p.id}">${p.nome}</option>`
+    ).join('');
+
+    const selectPlano = document.getElementById('cliente-plano');
+    selectPlano.innerHTML = '<option value="">Selecione um Plano *</option>' + API.planos.map(p => 
+        `<option value="${p.id}">${p.nome} - ${formatarMoeda(p.preco)}</option>`
+    ).join('');
 }
 
-function exportCSV() {
-  alert('Exportando dados em CSV...\n\nEsta funcionalidade está simulada. Em produção, seria gerado um arquivo CSV com os dados do sistema.');
+document.getElementById('form-cliente')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('cliente-id').value;
+    const cliente = {
+        nome: document.getElementById('cliente-nome').value.trim(),
+        telefone: document.getElementById('cliente-telefone').value.trim(),
+        painel_id: parseInt(document.getElementById('cliente-painel').value),
+        plano_id: parseInt(document.getElementById('cliente-plano').value),
+        data_vencimento: document.getElementById('cliente-vencimento').value,
+        status_pagamento: document.getElementById('cliente-status-pagto').value,
+        status: document.getElementById('cliente-status').value
+    };
+
+    if (!cliente.nome || !cliente.telefone || !cliente.painel_id || !cliente.plano_id) {
+        alert('❌ Preencha todos os campos obrigatórios!');
+        return;
+    }
+
+    if (id) {
+        const idx = API.clientes.findIndex(c => c.id == id);
+        if (idx >= 0) {
+            Object.assign(API.clientes[idx], cliente);
+            alert('✅ Cliente atualizado!');
+        }
+    } else {
+        cliente.id = API.nextClienteId++;
+        cliente.data_cadastro = new Date().toISOString().split('T')[0];
+        API.clientes.push(cliente);
+        alert('✅ Cliente criado!');
+    }
+    
+    modals.cliente.style.display = 'none';
+    listarClientes();
+    atualizarDashboard();
+});
+
+function editarCliente(id) {
+    const cliente = API.clientes.find(c => c.id === id);
+    if (!cliente) return;
+    
+    document.getElementById('cliente-id').value = cliente.id;
+    document.getElementById('cliente-nome').value = cliente.nome;
+    document.getElementById('cliente-telefone').value = cliente.telefone;
+    
+    popularSelectsCliente();
+    
+    setTimeout(() => {
+        document.getElementById('cliente-painel').value = cliente.painel_id;
+        document.getElementById('cliente-plano').value = cliente.plano_id;
+    }, 100);
+    
+    document.getElementById('cliente-vencimento').value = cliente.data_vencimento;
+    document.getElementById('cliente-status-pagto').value = cliente.status_pagamento;
+    document.getElementById('cliente-status').value = cliente.status;
+    modals.cliente.style.display = 'block';
 }
 
-// Modal Functions
-function closeModal(modalId) {
-  document.getElementById(modalId).classList.remove('active');
+function deletarClienteUnico(id) {
+    if (confirm('Deletar este cliente? Esta ação é irreversível!')) {
+        API.clientes = API.clientes.filter(c => c.id !== id);
+        listarClientes();
+        atualizarDashboard();
+        alert('✅ Cliente deletado!');
+    }
 }
 
-// Utility Functions
-function formatCurrency(value) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(value);
+document.getElementById('busca-cliente')?.addEventListener('input', (e) => {
+    const termo = e.target.value.toLowerCase();
+    if (!termo) {
+        listarClientes();
+        return;
+    }
+    const filtrados = API.clientes.filter(c => c.nome.toLowerCase().includes(termo));
+    document.getElementById('tabela-clientes').innerHTML = filtrados.map(c => {
+        const painel = API.paineis.find(p => p.id === c.painel_id);
+        const plano = API.planos.find(p => p.id === c.plano_id);
+        return `
+            <tr>
+                <td><input type="checkbox" class="cliente-checkbox" value="${c.id}"></td>
+                <td>${c.id}</td>
+                <td>${c.nome}</td>
+                <td>${c.telefone}</td>
+                <td>${painel?.nome || 'N/A'}</td>
+                <td>${plano?.nome || 'N/A'}</td>
+                <td>${formatarData(c.data_vencimento)}</td>
+                <td><span class="status ${c.status_pagamento}">${c.status_pagamento}</span></td>
+                <td><span class="status ${c.status}">${c.status}</span></td>
+                <td>
+                    <button class="btn btn-secondary" onclick="editarCliente(${c.id})">✏️</button>
+                    <button class="btn btn-danger" onclick="deletarClienteUnico(${c.id})">🗑️</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    adicionarEventosCheckbox();
+});
+
+document.getElementById('filtro-status')?.addEventListener('change', (e) => {
+    const status = e.target.value;
+    if (!status) {
+        listarClientes();
+        return;
+    }
+    const filtrados = API.clientes.filter(c => c.status === status);
+    document.getElementById('tabela-clientes').innerHTML = filtrados.map(c => {
+        const painel = API.paineis.find(p => p.id === c.painel_id);
+        const plano = API.planos.find(p => p.id === c.plano_id);
+        return `
+            <tr>
+                <td><input type="checkbox" class="cliente-checkbox" value="${c.id}"></td>
+                <td>${c.id}</td>
+                <td>${c.nome}</td>
+                <td>${c.telefone}</td>
+                <td>${painel?.nome || 'N/A'}</td>
+                <td>${plano?.nome || 'N/A'}</td>
+                <td>${formatarData(c.data_vencimento)}</td>
+                <td><span class="status ${c.status_pagamento}">${c.status_pagamento}</span></td>
+                <td><span class="status ${c.status}">${c.status}</span></td>
+                <td>
+                    <button class="btn btn-secondary" onclick="editarCliente(${c.id})">✏️</button>
+                    <button class="btn btn-danger" onclick="deletarClienteUnico(${c.id})">🗑️</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    adicionarEventosCheckbox();
+});
+
+// ========== ADMIN - USUÁRIOS ==========
+function listarUsuarios() {
+    document.getElementById('tabela-usuarios').innerHTML = API.usuarios.map(u => `
+        <tr>
+            <td>${u.id}</td>
+            <td>${u.username}</td>
+            <td>${u.email}</td>
+            <td>${u.role}</td>
+            <td>${formatarData(u.data_criacao)}</td>
+            <td><span class="status ${u.status}">${u.status}</span></td>
+            <td>
+                <button class="btn btn-secondary" onclick="editarUsuario(${u.id})">✏️</button>
+                <button class="btn btn-secondary" onclick="abrirTrocarSenha(${u.id})">🔑</button>
+                <button class="btn btn-danger" onclick="deletarUsuario(${u.id})">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
 }
 
-function formatDate(dateString) {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString + 'T00:00:00');
-  return date.toLocaleDateString('pt-BR');
+document.getElementById('btn-novo-usuario')?.addEventListener('click', () => {
+    document.getElementById('form-usuario').reset();
+    document.getElementById('usuario-id').value = '';
+    modals.usuario.style.display = 'block';
+});
+
+document.getElementById('form-usuario')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('usuario-id').value;
+    const username = document.getElementById('usuario-username').value.trim();
+    const email = document.getElementById('usuario-email').value.trim();
+    const senha = document.getElementById('usuario-senha').value;
+    const confirmar = document.getElementById('usuario-confirmar-senha').value;
+    const role = document.getElementById('usuario-role').value;
+    const status = document.getElementById('usuario-status').value;
+
+    if (senha !== confirmar) {
+        alert('❌ As senhas não conferem!');
+        return;
+    }
+
+    if (senha.length < 6) {
+        alert('❌ Senha deve ter no mínimo 6 caracteres!');
+        return;
+    }
+
+    const emailExiste = API.usuarios.find(u => u.email === email && u.id != id);
+    if (emailExiste) {
+        alert('❌ Este email já está registrado!');
+        return;
+    }
+
+    if (id) {
+        const usuario = API.usuarios.find(u => u.id == id);
+        if (usuario) {
+            usuario.username = username;
+            usuario.email = email;
+            usuario.role = role;
+            usuario.status = status;
+            if (documento.getElementById('usuario-senha').value) {
+                usuario.senha = senha;
+            }
+            alert('✅ Usuário atualizado!');
+        }
+    } else {
+        const novoUsuario = {
+            id: API.nextUsuarioId++,
+            username: username,
+            email: email,
+            senha: senha,
+            role: role,
+            status: status,
+            data_criacao: new Date().toISOString().split('T')[0]
+        };
+        API.usuarios.push(novoUsuario);
+        alert('✅ Usuário criado com sucesso!');
+    }
+
+    modals.usuario.style.display = 'none';
+    listarUsuarios();
+});
+
+function editarUsuario(id) {
+    const usuario = API.usuarios.find(u => u.id === id);
+    if (!usuario) return;
+    
+    document.getElementById('usuario-id').value = usuario.id;
+    document.getElementById('usuario-username').value = usuario.username;
+    document.getElementById('usuario-email').value = usuario.email;
+    document.getElementById('usuario-role').value = usuario.role;
+    document.getElementById('usuario-status').value = usuario.status;
+    document.getElementById('usuario-senha').value = '';
+    document.getElementById('usuario-confirmar-senha').value = '';
+    modals.usuario.style.display = 'block';
 }
 
-function formatDateInput(date) {
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function abrirTrocarSenha(id) {
+    document.getElementById('trocar-usuario-id').value = id;
+    document.getElementById('form-trocar-senha').reset();
+    modals.trocarSenha.style.display = 'block';
 }
 
-function validateEmail(email) {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
+document.getElementById('form-trocar-senha')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const usuarioId = parseInt(document.getElementById('trocar-usuario-id').value);
+    const senhaAtual = document.getElementById('trocar-senha-atual').value;
+    const senhaNova = document.getElementById('trocar-senha-nova').value;
+    const confirmarNova = document.getElementById('trocar-confirmar-nova').value;
+
+    const usuario = API.usuarios.find(u => u.id === usuarioId);
+    if (!usuario) return;
+
+    if (usuario.senha !== senhaAtual) {
+        alert('❌ Senha atual incorreta!');
+        return;
+    }
+
+    if (senhaNova !== confirmarNova) {
+        alert('❌ As novas senhas não conferem!');
+        return;
+    }
+
+    if (senhaNova.length < 6) {
+        alert('❌ Senha deve ter no mínimo 6 caracteres!');
+        return;
+    }
+
+    usuario.senha = senhaNova;
+    alert('✅ Senha atualizada com sucesso!');
+    modals.trocarSenha.style.display = 'none';
+});
+
+function deletarUsuario(id) {
+    if (API.usuarios.length <= 1) {
+        alert('❌ Você deve manter pelo menos um usuário!');
+        return;
+    }
+
+    if (confirm('Deletar este usuário?')) {
+        API.usuarios = API.usuarios.filter(u => u.id !== id);
+        alert('✅ Usuário deletado!');
+        listarUsuarios();
+    }
 }
 
-function validateTelefone(telefone) {
-  const cleaned = telefone.replace(/\D/g, '');
-  return cleaned.length >= 10 && cleaned.length <= 11;
+// ========== ASSINATURAS ==========
+function listarAssinaturas() {
+    document.getElementById('tabela-assinaturas').innerHTML = API.assinaturas.map(a => {
+        const cliente = API.clientes.find(c => c.id === a.cliente_id);
+        const painel = API.paineis.find(p => p.id === a.painel_id);
+        const plano = API.planos.find(p => p.id === a.plano_id);
+        return `
+            <tr>
+                <td>${cliente?.nome || 'N/A'}</td>
+                <td>${painel?.nome || 'N/A'}</td>
+                <td>${plano?.nome || 'N/A'}</td>
+                <td>${formatarData(a.data_inicio)}</td>
+                <td>${formatarData(a.data_vencimento)}</td>
+                <td><span class="status ${a.status_pagamento}">${a.status_pagamento}</span></td>
+                <td>
+                    <button class="btn btn-secondary" onclick="registrarPagamento(${a.id})">💳</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
-function validateCPF(cpf) {
-  const cleaned = cpf.replace(/\D/g, '');
-  return cleaned.length === 11;
+document.getElementById('btn-nova-assinatura')?.addEventListener('click', () => {
+    document.getElementById('form-assinatura').reset();
+    popularSelectsAssinatura();
+    modals.assinatura.style.display = 'block';
+});
+
+function popularSelectsAssinatura() {
+    const select = document.getElementById('assinatura-cliente');
+    select.innerHTML = '<option value="">Selecione um cliente</option>' + API.clientes.map(c => 
+        `<option value="${c.id}">${c.nome}</option>`
+    ).join('');
+
+    const select2 = document.getElementById('assinatura-painel');
+    select2.innerHTML = '<option value="">Selecione um painel</option>' + API.paineis.map(p => 
+        `<option value="${p.id}">${p.nome}</option>`
+    ).join('');
+
+    const select3 = document.getElementById('assinatura-plano');
+    select3.innerHTML = '<option value="">Selecione um plano</option>' + API.planos.map(p => 
+        `<option value="${p.id}">${p.nome} - ${formatarMoeda(p.preco)}</option>`
+    ).join('');
 }
+
+document.getElementById('form-assinatura')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const assinatura = {
+        id: API.nextAssinaturaId++,
+        cliente_id: parseInt(document.getElementById('assinatura-cliente').value),
+        painel_id: parseInt(document.getElementById('assinatura-painel').value),
+        plano_id: parseInt(document.getElementById('assinatura-plano').value),
+        data_inicio: document.getElementById('assinatura-inicio').value,
+        data_vencimento: document.getElementById('assinatura-vencimento').value,
+        status_pagamento: 'pendente'
+    };
+    API.assinaturas.push(assinatura);
+    alert('✅ Assinatura criada!');
+    modals.assinatura.style.display = 'none';
+    listarAssinaturas();
+    atualizarDashboard();
+});
+
+function registrarPagamento(assinaturaId) {
+    const assinatura = API.assinaturas.find(a => a.id === assinaturaId);
+    if (assinatura) {
+        assinatura.status_pagamento = 'pago';
+        alert('✅ Pagamento registrado!');
+        listarAssinaturas();
+        atualizarDashboard();
+    }
+}
+
+// ========== PAINÉIS ==========
+function listarPaineis() {
+    document.getElementById('tabela-paineis').innerHTML = API.paineis.map(p => {
+        const assinCount = API.assinaturas.filter(a => a.painel_id === p.id).length;
+        const receita = API.assinaturas
+            .filter(a => a.painel_id === p.id)
+            .reduce((sum, a) => {
+                const plano = API.planos.find(pl => pl.id === a.plano_id);
+                return sum + plano.preco;
+            }, 0);
+        return `
+            <tr>
+                <td>${p.nome}</td>
+                <td><span class="status ${p.status}">${p.status}</span></td>
+                <td>${assinCount}</td>
+                <td>${formatarMoeda(receita)}</td>
+                <td>
+                    <button class="btn btn-secondary" onclick="togglePainel(${p.id})">
+                        ${p.status === 'ativo' ? '⏸️' : '▶️'}
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function togglePainel(painelId) {
+    const painel = API.paineis.find(p => p.id === painelId);
+    if (painel) {
+        painel.status = painel.status === 'ativo' ? 'inativo' : 'ativo';
+        listarPaineis();
+    }
+}
+
+// ========== RELATÓRIOS ==========
+document.querySelectorAll('.relatorio-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.relatorio-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.relatorio-content').forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        document.getElementById('relatorio-' + this.dataset.rel).classList.add('active');
+    });
+});
+
+function inicializarRelatorios() {
+    if (document.getElementById('receitaPorPlanoChart')) {
+        if (chartInstances.receitaPlano) chartInstances.receitaPlano.destroy();
+        const ctx = document.getElementById('receitaPorPlanoChart').getContext('2d');
+        const receitaPorPlano = API.planos.map(p => {
+            return API.assinaturas
+                .filter(a => a.plano_id === p.id)
+                .reduce((sum, a) => sum + p.preco, 0);
+        });
+
+        chartInstances.receitaPlano = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: API.planos.map(p => p.nome),
+                datasets: [{
+                    label: 'Receita',
+                    data: receitaPorPlano,
+                    backgroundColor: ['#0066CC', '#FFCC00', '#000000']
+                }]
+            },
+            options: { responsive: true }
+        });
+    }
+
+    if (document.getElementById('receitaPorPainelChart')) {
+        if (chartInstances.receitaPainel) chartInstances.receitaPainel.destroy();
+        const ctx2 = document.getElementById('receitaPorPainelChart').getContext('2d');
+        const receitaPorPainel = API.paineis.map(p => {
+            return API.assinaturas
+                .filter(a => a.painel_id === p.id)
+                .reduce((sum, a) => {
+                    const plano = API.planos.find(pl => pl.id === a.plano_id);
+                    return sum + plano.preco;
+                }, 0);
+        });
+
+        chartInstances.receitaPainel = new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: API.paineis.map(p => p.nome),
+                datasets: [{
+                    label: 'Receita',
+                    data: receitaPorPainel,
+                    backgroundColor: '#0066CC'
+                }]
+            },
+            options: { responsive: true }
+        });
+    }
+
+    const infoClientes = document.getElementById('info-clientes');
+    if (infoClientes) {
+        infoClientes.innerHTML = `
+            <h3>Resumo de Clientes</h3>
+            <p><strong>Total:</strong> ${API.clientes.length}</p>
+            <p><strong>Ativos:</strong> ${API.clientes.filter(c => c.status === 'ativo').length}</p>
+            <p><strong>Inativos:</strong> ${API.clientes.filter(c => c.status === 'inativo').length}</p>
+        `;
+    }
+}
+
+// ========== INICIALIZAÇÃO ==========
+function inicializarSistema() {
+    listarClientes();
+    listarAssinaturas();
+    listarPaineis();
+    listarUsuarios();
+    atualizarDashboard();
+    inicializarRelatorios();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Sistema inicia com tela de login
+});
